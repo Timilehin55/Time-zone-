@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multi Timezone Digital Clock</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#9aa4b2; --accent:#60a5fa;
+      --glass: rgba(255,255,255,0.03);
+      color-scheme: dark;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      min-height:100vh;
+      background: linear-gradient(180deg,#071027 0%, #071827 60%);
+      color:#e6eef8;
+      padding:28px;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      gap:24px;
+    }
+
+    .app{
+      width:100%;
+      max-width:1100px;
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:18px;
+    }
+    h1{margin:0;font-size:20px;letter-spacing:0.2px}
+    .controls{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    .search {
+      display:flex;
+      gap:8px;
+      background:var(--glass);
+      border-radius:10px;
+      padding:8px;
+      align-items:center;
+    }
+    .search input, .search select{
+      background:transparent;
+      border:0;
+      color:inherit;
+      padding:6px 8px;
+      outline:none;
+      min-width:200px;
+    }
+    .btn{
+      background:linear-gradient(180deg,var(--accent),#3b82f6);
+      border-radius:10px;
+      padding:8px 10px;
+      color:#04203a;
+      font-weight:600;
+      border:0;
+      cursor:pointer;
+      box-shadow:0 6px 18px rgba(11,61,120,0.25);
+    }
+    .btn.ghost{
+      background:transparent;
+      color:var(--muted);
+      border:1px solid rgba(255,255,255,0.04);
+      box-shadow:none;
+    }
+
+    main{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:14px;
+    }
+
+    .local-clock{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius:12px;
+      padding:16px;
+      box-shadow: 0 6px 40px rgba(2,6,23,0.6);
+    }
+    .local-clock .time-large{
+      font-size:46px;
+      font-weight:700;
+      line-height:1;
+      font-family: "SF Pro Display", Inter, system-ui, -apple-system;
+    }
+    .local-clock .meta{color:var(--muted); font-size:14px}
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill,minmax(240px,1fr));
+      gap:12px;
+      margin-top:6px;
+    }
+
+    .tz-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.008));
+      padding:12px;
+      border-radius:10px;
+      min-height:110px;
+      position:relative;
+      border:1px solid rgba(255,255,255,0.03);
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+    .tz-card .name{font-weight:600}
+    .tz-card .time{
+      font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      font-size:20px;
+      letter-spacing:0.6px;
+    }
+    .tz-card .small{color:var(--muted); font-size:13px}
+    .tz-card .remove{
+      position:absolute;
+      top:8px;
+      right:8px;
+      background:transparent;
+      border:0;
+      color:var(--muted);
+      cursor:pointer;
+      padding:6px;
+      border-radius:8px;
+    }
+    .tz-card .remove:hover{background:rgba(255,255,255,0.02)}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+
+    @media (max-width:640px){
+      body{padding:16px}
+      .local-clock .time-large{font-size:36px}
+      .search input{min-width:120px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" role="application" aria-label="Multi timezone digital clock">
+    <header>
+      <div>
+        <h1>Multi Timezone Clock</h1>
+        <div style="color:var(--muted);font-size:13px">Displays current time for multiple time zones (persisted locally)</div>
+      </div>
+
+      <div class="controls" aria-hidden="false">
+        <div class="search" title="Pick or search a timezone">
+          <input id="tz-search" placeholder="Search time zones (e.g. London, New_York)" aria-label="Search time zones" />
+          <select id="tz-select" aria-label="Timezone select"></select>
+        </div>
+
+        <button id="add-btn" class="btn">Add</button>
+        <button id="toggle-format" class="btn ghost" title="Toggle 12/24 hour">24h</button>
+        <button id="clear-btn" class="btn ghost" title="Clear saved zones">Reset</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="local-clock" aria-live="polite">
+        <div>
+          <div class="time-large" id="local-time">--:--:--</div>
+          <div class="meta" id="local-meta">Local • --</div>
+        </div>
+        <div style="margin-left:auto;text-align:right;color:var(--muted)">
+          <div id="local-date">--</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px">Updated every second</div>
+        </div>
+      </section>
+
+      <section class="grid" id="zones-grid" aria-live="polite">
+        <!-- timezone cards go here -->
+      </section>
+
+      <footer>
+        Tip: Use the search box to find a timezone (autocomplete uses browser Intl list when available). Time zone names follow IANA tz database (e.g. "Europe/London", "America/New_York").
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // Utility and state
+    const STORAGE_KEY = 'multi-tz-clock:v1';
+    const defaultZones = ['UTC','Europe/London','America/New_York','Asia/Tokyo','Australia/Sydney'];
+    const state = {
+      zones: [],
+      hour12: false
+    };
+
+    // Populate timezone list (use Intl.supportedValuesOf if available)
+    function getAllTimeZones() {
+      if (typeof Intl === 'object' && typeof Intl.supportedValuesOf === 'function') {
+        try {
+          return Intl.supportedValuesOf('timeZone');
+        } catch (e) {
+          // fallthrough
+        }
+      }
+      // Fallback: a curated list of common timezones (non-exhaustive)
+      return [
+        "UTC","Europe/London","Europe/Paris","Europe/Berlin","Europe/Moscow",
+        "America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Sao_Paulo",
+        "Asia/Tokyo","Asia/Shanghai","Asia/Hong_Kong","Asia/Singapore","Asia/Kolkata",
+        "Australia/Sydney","Pacific/Auckland","Africa/Johannesburg","Asia/Dubai"
+      ];
+    }
+
+    const ALL_TZ = getAllTimeZones();
+
+    // DOM refs
+    const tzSelect = document.getElementById('tz-select');
+    const tzSearch = document.getElementById('tz-search');
+    const addBtn = document.getElementById('add-btn');
+    const grid = document.getElementById('zones-grid');
+    const localTimeEl = document.getElementById('local-time');
+    const localMeta = document.getElementById('local-meta');
+    const localDateEl = document.getElementById('local-date');
+    const toggleFormatBtn = document.getElementById('toggle-format');
+    const clearBtn = document.getElementById('clear-btn');
+
+    // Load/save
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const parsed = JSON.parse(raw);
+          state.zones = Array.isArray(parsed.zones) && parsed.zones.length ? parsed.zones : defaultZones.slice(0,3);
+          state.hour12 = !!parsed.hour12;
+        } else {
+          state.zones = defaultZones.slice(0,5);
+          state.hour12 = false;
+        }
+      } catch(e){
+        state.zones = defaultZones.slice(0,5);
+        state.hour12 = false;
+      }
+    }
+    function saveState(){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({zones: state.zones, hour12: state.hour12}));
+    }
+
+    // Helpers
+    function formatTimeForZone(date, timeZone, hour12){
+      const opts = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: hour12 };
+      return new Intl.DateTimeFormat(undefined, {...opts, timeZone}).format(date);
+    }
+    function formatDateForZone(date, timeZone){
+      const opts = { weekday: 'short', year:'numeric', month:'short', day:'2-digit', timeZone };
+      return new Intl.DateTimeFormat(undefined, opts).format(date);
+    }
+    function timezoneShortName(date, timeZone){
+      // This returns things like "GMT+1" or "BST" depending on environment
+      try {
+        const opts = { timeZone, timeZoneName: 'short' };
+        // toLocaleString tends to append the timezone short name at end
+        return new Intl.DateTimeFormat(undefined, opts).formatToParts(date).filter(p => p.type === 'timeZoneName').map(p => p.value).join('') || '';
+      } catch(e){
+        return '';
+      }
+    }
+
+    // Render functions
+    function renderSelect(list){
+      tzSelect.innerHTML = '';
+      list.forEach(tz => {
+        const opt = document.createElement('option');
+        opt.value = tz;
+        opt.textContent = tz.replace('_',' ');
+        tzSelect.appendChild(opt);
+      });
+    }
+
+    function renderLocal(now){
+      localTimeEl.textContent = formatTimeForZone(now, Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', state.hour12);
+      const tzName = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Local';
+      localMeta.textContent = `${tzName} • ${timezoneShortName(now, tzName) || ''}`;
+      localDateEl.textContent = formatDateForZone(now, Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+    }
+
+    function createCard(tz){
+      const card = document.createElement('article');
+      card.className = 'tz-card';
+      card.dataset.tz = tz;
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'remove';
+      removeBtn.innerHTML = '✕';
+      removeBtn.title = 'Remove timezone';
+      removeBtn.addEventListener('click', () => {
+        state.zones = state.zones.filter(z => z !== tz);
+        saveState();
+        renderAll();
+      });
+
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = tz;
+
+      const time = document.createElement('div');
+      time.className = 'time';
+      time.textContent = '--:--:--';
+
+      const small = document.createElement('div');
+      small.className = 'small';
+      small.textContent = '';
+
+      card.appendChild(removeBtn);
+      card.appendChild(name);
+      card.appendChild(time);
+      card.appendChild(small);
+
+      return card;
+    }
+
+    function renderAll(){
+      // ensure no duplicates and preserve order
+      state.zones = Array.from(new Set(state.zones));
+      saveState();
+
+      // Render grid
+      grid.innerHTML = '';
+      if(state.zones.length === 0){
+        const p = document.createElement('div');
+        p.style.color = 'var(--muted)';
+        p.textContent = 'No time zones selected. Use the selector above to add some.';
+        grid.appendChild(p);
+        return;
+      }
+      state.zones.forEach(tz => {
+        const card = createCard(tz);
+        grid.appendChild(card);
+      });
+    }
+
+    // Update times
+    function tick(){
+      const now = new Date();
+      renderLocal(now);
+
+      const cards = Array.from(document.querySelectorAll('.tz-card'));
+      cards.forEach(card => {
+        const tz = card.dataset.tz;
+        const timeEl = card.querySelector('.time');
+        const smallEl = card.querySelector('.small');
+        if(!tz) return;
+        timeEl.textContent = formatTimeForZone(now, tz, state.hour12);
+        smallEl.textContent = `${formatDateForZone(now, tz)} ${timezoneShortName(now, tz) || ''}`.trim();
+      });
+    }
+
+    // Events & init
+    function onAddSelected(){
+      const tz = tzSelect.value;
+      if(!tz) return;
+      if(!state.zones.includes(tz)){
+        state.zones.push(tz);
+        saveState();
+        renderAll();
+      }
+    }
+
+    function onSearchInput(){
+      const q = tzSearch.value.trim().toLowerCase();
+      if(!q){
+        renderSelect(ALL_TZ);
+        return;
+      }
+      // filter by timezone id or the part after slash
+      const filtered = ALL_TZ.filter(tz => tz.toLowerCase().includes(q) || tz.split('/').slice(-1)[0].toLowerCase().includes(q));
+      renderSelect(filtered.length ? filtered : ALL_TZ);
+    }
+
+    addBtn.addEventListener('click', onAddSelected);
+    tzSearch.addEventListener('input', onSearchInput);
+    tzSelect.addEventListener('keydown', (e) => { if(e.key === 'Enter') onAddSelected(); });
+
+    toggleFormatBtn.addEventListener('click', () => {
+      state.hour12 = !state.hour12;
+      toggleFormatBtn.textContent = state.hour12 ? '12h' : '24h';
+      saveState();
+      tick();
+    });
+
+    clearBtn.addEventListener('click', () => {
+      if(confirm('Reset saved time zones to defaults?')) {
+        state.zones = defaultZones.slice(0,5);
+        state.hour12 = false;
+        saveState();
+        renderAll();
+        tick();
+        toggleFormatBtn.textContent = '24h';
+      }
+    });
+
+    // Initialization
+    function init(){
+      loadState();
+      renderSelect(ALL_TZ);
+      renderAll();
+      toggleFormatBtn.textContent = state.hour12 ? '12h' : '24h';
+      tick();
+      // update every 1s
+      setInterval(tick, 1000);
+    }
+
+    init();
+
+  </script>
+</body>
+</html>
